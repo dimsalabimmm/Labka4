@@ -1,0 +1,72 @@
+﻿<Application x:Class="Labka4.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <!-- Palette -->
+        <SolidColorBrush x:Key="Brush.WindowBackground" Color="#0B0E16" />
+        <SolidColorBrush x:Key="Brush.PanelBackground" Color="#171C27" />
+        <SolidColorBrush x:Key="Brush.CardBackground" Color="#111520" />
+        <SolidColorBrush x:Key="Brush.PanelBorder" Color="#252A38" />
+        <SolidColorBrush x:Key="Brush.AccentPrimary" Color="#FF8C32" />
+        <SolidColorBrush x:Key="Brush.AccentSecondary" Color="#FFAF63" />
+        <SolidColorBrush x:Key="Brush.TextPrimary" Color="#F7F7F7" />
+        <SolidColorBrush x:Key="Brush.TextSecondary" Color="#A8B0C2" />
+        <DropShadowEffect x:Key="DropShadowEffect"
+                          BlurRadius="30"
+                          Color="#99000000"
+                          ShadowDepth="0"
+                          Opacity="0.65" />
+
+        <!-- Global typography / theming -->
+        <Style TargetType="Window">
+            <Setter Property="Background" Value="{StaticResource Brush.WindowBackground}" />
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+            <Setter Property="FontFamily" Value="Bahnschrift" />
+        </Style>
+
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+        </Style>
+
+        <Style TargetType="TabControl">
+            <Setter Property="Background" Value="{StaticResource Brush.PanelBackground}" />
+            <Setter Property="BorderBrush" Value="{StaticResource Brush.PanelBorder}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="8" />
+        </Style>
+
+        <Style TargetType="TabItem">
+            <Setter Property="Foreground" Value="{StaticResource Brush.TextSecondary}" />
+            <Setter Property="Padding" Value="16,8" />
+            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder"
+                                Background="Transparent"
+                                BorderBrush="Transparent"
+                                BorderThickness="1"
+                                CornerRadius="14"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="{StaticResource Brush.AccentPrimary}" />
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{StaticResource Brush.AccentSecondary}" />
+                                <Setter Property="Foreground" Value="{StaticResource Brush.WindowBackground}" />
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#22FF8C32" />
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="{StaticResource Brush.AccentPrimary}" />
+                                <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Application.Resources>
+</Application>
