@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:controls="clr-namespace:Labka4.Controls"
         mc:Ignorable="d"
-        Title="Лабораторная №4 — 3D поверхности"
+        Title="Графики"
         Height="650"
         Width="1000"
         Background="{StaticResource Brush.WindowBackground}">
@@ -20,7 +20,7 @@
             <DockPanel LastChildFill="True">
                 <StackPanel DockPanel.Dock="Top"
                             Margin="0,0,0,20">
-                    <TextBlock Text="Лабораторная №4 · Интерактивные 3D‑поверхности"
+                    <TextBlock Text="Графики"
                                FontSize="26"
                                FontWeight="Bold"
                                Foreground="{StaticResource Brush.TextPrimary}" />
@@ -35,15 +35,8 @@
                         Background="{StaticResource Brush.PanelBackground}"
                         BorderBrush="{StaticResource Brush.PanelBorder}"
                         BorderThickness="1">
-                    <TabControl ItemsSource="{Binding FunctionTabs}">
-                        <TabControl.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding Title}"
-                                           FontWeight="SemiBold"
-                                           FontSize="15"
-                                           TextTrimming="CharacterEllipsis" />
-                            </DataTemplate>
-                        </TabControl.ItemTemplate>
+                    <TabControl ItemsSource="{Binding FunctionTabs}"
+                                DisplayMemberPath="Title">
                         <TabControl.ContentTemplate>
                             <DataTemplate>
                                 <controls:Surface3DControl SurfaceData="{Binding SurfaceData}" />

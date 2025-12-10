@@ -40,24 +40,6 @@
                 <ModelVisual3D x:Name="SurfaceVisual" />
             </Viewport3D>
         </Border>
-        <Border HorizontalAlignment="Right"
-                VerticalAlignment="Bottom"
-                Margin="16"
-                Padding="10,6"
-                Background="#AA05070F"
-                BorderBrush="{StaticResource Brush.AccentPrimary}"
-                BorderThickness="1"
-                CornerRadius="8">
-            <StackPanel>
-                <TextBlock Text="Орбита · удерживайте ПКМ"
-                           Foreground="{StaticResource Brush.TextPrimary}"
-                           FontSize="12"
-                           FontWeight="SemiBold" />
-                <TextBlock Text="Зум · колесо мыши"
-                           Foreground="{StaticResource Brush.TextSecondary}"
-                           FontSize="11" />
-            </StackPanel>
-        </Border>
     </Grid>
 </UserControl>
 

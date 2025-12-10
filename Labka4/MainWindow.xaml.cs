@@ -77,5 +77,10 @@ namespace Labka4
         public string Title { get; }
 
         public SurfaceMeshData SurfaceData { get; }
+
+        public override string ToString()
+        {
+            return Title;
+        }
     }
 }
