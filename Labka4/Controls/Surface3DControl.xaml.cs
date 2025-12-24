@@ -289,21 +289,15 @@ namespace Labka4.Controls
 
         private Model3DGroup CreateUnitCarModel()
         {
-            // Car local axes:
-            // X = forward, Y = right, Z = up.
+            // Car local axes: X forward, Y right, Z up.
             var group = new Model3DGroup();
 
-            // Sizes (unit car): keep proportions reasonable
-            // Body box: length 1.6, width 0.8, height 0.35, centered above ground
             var body = CreateBoxModel(1.6, 0.8, 0.35, _carBodyMaterial);
             body.Transform = new TranslateTransform3D(0.0, 0.0, 0.25);
 
-            // Cabin: length 0.8, width 0.7, height 0.35, placed toward rear
             var cabin = CreateBoxModel(0.8, 0.7, 0.35, _carCabinMaterial);
             cabin.Transform = new TranslateTransform3D(-0.2, 0.0, 0.52);
 
-            // Wheels: 4 small boxes
-            // wheel: length 0.35, width 0.16, height 0.22
             double wL = 0.35, wW = 0.16, wH = 0.22;
 
             var wheelFL = CreateBoxModel(wL, wW, wH, _carWheelMaterial);
@@ -330,7 +324,6 @@ namespace Labka4.Controls
 
         private GeometryModel3D CreateBoxModel(double sx, double sy, double sz, Material material)
         {
-            // Box centered at origin with sizes sx,sy,sz
             double hx = sx / 2.0;
             double hy = sy / 2.0;
             double hz = sz / 2.0;
@@ -350,17 +343,11 @@ namespace Labka4.Controls
 
             int[] idx =
             {
-                // back (-Z)
                 0,2,1, 0,3,2,
-                // front (+Z)
                 4,5,6, 4,6,7,
-                // left (-X)
                 0,7,3, 0,4,7,
-                // right (+X)
                 1,2,6, 1,6,5,
-                // bottom (-Y)
                 0,1,5, 0,5,4,
-                // top (+Y)
                 3,7,6, 3,6,2
             };
 
@@ -370,7 +357,6 @@ namespace Labka4.Controls
                 TriangleIndices = new Int32Collection(idx)
             };
 
-            // Rough per-vertex normals
             var normals = new Vector3DCollection();
             for (int i = 0; i < p.Length; i++)
             {
@@ -488,7 +474,7 @@ namespace Labka4.Controls
         }
 
         // ============================================================
-        // Spawn car: click -> hit surface -> random direction -> drive
+        // Spawn car: click -> hit surface -> LOCALize hit -> correct side -> random direction
         // ============================================================
         private void TrySpawnCarAt(Point viewportPoint)
         {
@@ -515,24 +501,67 @@ namespace Labka4.Controls
             if (hit == null)
                 return;
 
-            var p = hit.PointHit;
+            // HitTest returns PointHit in the local coordinate system of the hit Model3D/Visual3D.
+            // This is the same "surface space" that _surfaceLocalPoints uses (before _surfaceTransform is applied).
+            Point3D pLocal = hit.PointHit;
 
-            // Map hit X/Y to fractional grid coords
+            // Ray direction in LOCAL space (camera -> hit).
+            Point3D cameraLocal = WorldPointToLocal(MainCamera.Position);
+            Vector3D rayDirLocal = pLocal - cameraLocal;
+            if (rayDirLocal.LengthSquared > 1e-12)
+                rayDirLocal.Normalize();
+
+
+            // Local -> fractional grid coords
             double xSpan = Math.Max(_xMaxC - _xMinC, double.Epsilon);
             double ySpan = Math.Max(_yMaxC - _yMinC, double.Epsilon);
 
-            double colF = (p.X - _xMinC) / xSpan * (_cols - 1); // 0..cols-1
-            double rowF = (p.Y - _yMinC) / ySpan * (_rows - 1); // 0..rows-1
+            double colF = (pLocal.X - _xMinC) / xSpan * (_cols - 1);
+            double rowF = (pLocal.Y - _yMinC) / ySpan * (_rows - 1);
 
-            // Choose random direction among 4, but try not to pick instantly-outside direction
+            // Determine side using grid normal near click
+            int rr = Clamp((int)Math.Round(rowF), 0, _rows - 1);
+            int cc = Clamp((int)Math.Round(colF), 0, _cols - 1);
+
+            Vector3D nGrid = GetSurfaceNormal(rr, cc);
+            if (nGrid.LengthSquared > 1e-12)
+                nGrid.Normalize();
+
+            // Choose normal sign so that nGrid * normalSign faces the camera
+            int normalSign = (Vector3D.DotProduct(nGrid, rayDirLocal) < 0) ? 1 : -1;
+
+            // IMPORTANT: no mirroring here. The hit point already corresponds to what you clicked,
+            // even if the surface is flipped.
             TravelDir dir = PickRandomDirection(colF, rowF);
+            SpawnCarFromFractional(colF, rowF, dir, normalSign);
+        }
 
-            SpawnCarFromFractional(colF, rowF, dir);
+        private Vector3D GetTriangleNormalLocal(RayMeshGeometry3DHitTestResult hit)
+        {
+            var mesh = _surfaceModel.Geometry as MeshGeometry3D;
+            if (mesh == null || mesh.Positions == null)
+                return new Vector3D(0, 0, 1);
+
+            int i0 = hit.VertexIndex1;
+            int i1 = hit.VertexIndex2;
+            int i2 = hit.VertexIndex3;
+
+            if (i0 < 0 || i1 < 0 || i2 < 0) return new Vector3D(0, 0, 1);
+            if (i0 >= mesh.Positions.Count || i1 >= mesh.Positions.Count || i2 >= mesh.Positions.Count)
+                return new Vector3D(0, 0, 1);
+
+            Point3D p0 = mesh.Positions[i0];
+            Point3D p1 = mesh.Positions[i1];
+            Point3D p2 = mesh.Positions[i2];
+
+            Vector3D u = p1 - p0;
+            Vector3D v = p2 - p0;
+            Vector3D n = Vector3D.CrossProduct(u, v);
+            return n;
         }
 
         private TravelDir PickRandomDirection(double colF, double rowF)
         {
-            // Try several random picks; if all bad, accept last.
             TravelDir last = TravelDir.Right;
             for (int i = 0; i < 8; i++)
             {
@@ -542,51 +571,58 @@ namespace Labka4.Controls
 
                 if (d == TravelDir.Right && colF < _cols - 1.01) return d;
                 if (d == TravelDir.Left && colF > 0.01) return d;
-                if (d == TravelDir.Down && rowF < _rows - 1.01) return d; // down in grid Y means increasing row
+                if (d == TravelDir.Down && rowF < _rows - 1.01) return d;
                 if (d == TravelDir.Up && rowF > 0.01) return d;
             }
             return last;
         }
 
-        private void SpawnCarFromFractional(double colF, double rowF, TravelDir dir)
+        private void SpawnCarFromFractional(double colF, double rowF, TravelDir dir, int normalSign)
         {
             if (_dynamicGroup == null || _carPrototype == null)
                 return;
 
-            // Scale
             double carScale = Math.Max(0.06 * _spanForScale, 0.25);
 
-            // Tread parameters (world units)
-            double wheelOffset = Math.Max(0.18 * carScale, 0.08);      // half distance between left/right wheels
-            double tireWidth = Math.Max(0.12 * carScale, 0.05);        // width of one tread stamp
-            double treadLength = Math.Max(0.16 * carScale, 0.06);      // length of one stamp
-            double treadSpacing = Math.Max(0.32 * carScale, 0.12);     // spacing between stamps
+            // Lift: сильнее, чтобы визуально не "въезжала" в поверхность
+            double lift = Math.Max(0.22 * carScale, 0.08);
+            lift = Math.Max(lift, 0.006 * _spanForScale);
 
-            // Speed
+            double wheelOffset = Math.Max(0.18 * carScale, 0.08);
+            double tireWidth = Math.Max(0.12 * carScale, 0.05);
+            double treadLength = Math.Max(0.16 * carScale, 0.06);
+            double treadSpacing = Math.Max(0.32 * carScale, 0.12);
+
             double span = Math.Max(Math.Abs(_xMaxC - _xMinC), Math.Abs(_yMaxC - _yMinC));
-            double speed = Math.Max(span * 0.45, 0.8); // world units/sec
+            double speed = Math.Max(span * 0.45, 0.8);
 
-            // Build an instance model (clone group with shared geometry is OK; we just need separate transforms)
             var carModel = CloneModelGroup(_carPrototype);
 
-            // Transforms per car: scale + rotate + translate
             var scale = new ScaleTransform3D(carScale, carScale, carScale);
-            var rotate = new AxisAngleRotation3D(new Vector3D(0, 0, 1), 0);
-            var rotT = new RotateTransform3D(rotate);
+
+            // Flip around LOCAL X (forward axis) to make wheels face the surface when on underside
+            var flipRot = new AxisAngleRotation3D(new Vector3D(1, 0, 0), 0);
+            var flipT = new RotateTransform3D(flipRot);
+
+            // Yaw around LOCAL Z to face forward direction in XY
+            var yawRot = new AxisAngleRotation3D(new Vector3D(0, 0, 1), 0);
+            var yawT = new RotateTransform3D(yawRot);
+
             var translate = new TranslateTransform3D(0, 0, 0);
 
             var tg = new Transform3DGroup();
             tg.Children.Add(scale);
-            tg.Children.Add(rotT);
+            tg.Children.Add(flipT);   // <-- flip BEFORE yaw (so axis X remains "forward")
+            tg.Children.Add(yawT);
             tg.Children.Add(translate);
 
             carModel.Transform = tg;
 
-            // Determine initial segment indices and t
             CarInstance car = new CarInstance();
             car.Model = carModel;
             car.Translate = translate;
-            car.Rotation = rotate;
+            car.Rotation = yawRot;
+            car.FlipRotation = flipRot;
 
             car.Speed = speed;
             car.State = CarState.Driving;
@@ -596,13 +632,15 @@ namespace Labka4.Controls
             car.TreadLength = treadLength;
             car.TreadSpacing = treadSpacing;
 
+            car.Lift = lift;
+            car.NormalSign = normalSign;
+
             car.HasLastPos = false;
             car.DistanceSinceLastTread = 0;
             car.FallVelocityWorld = 0;
 
             if (dir == TravelDir.Right || dir == TravelDir.Left)
             {
-                // Horizontal motion: fixed row, segment across columns
                 int row = Clamp((int)Math.Round(rowF), 0, _rows - 1);
 
                 int col0 = Clamp((int)Math.Floor(colF), 0, _cols - 2);
@@ -617,7 +655,6 @@ namespace Labka4.Controls
             }
             else
             {
-                // Vertical motion: fixed column, segment across rows
                 int col = Clamp((int)Math.Round(colF), 0, _cols - 1);
 
                 int row0 = Clamp((int)Math.Floor(rowF), 0, _rows - 2);
@@ -628,10 +665,9 @@ namespace Labka4.Controls
                 car.FixedIndex = col;
                 car.SegIndex = row0;
                 car.SegT = t;
-                car.DirSign = (dir == TravelDir.Down) ? 1 : -1; // down means increasing row
+                car.DirSign = (dir == TravelDir.Down) ? 1 : -1;
             }
 
-            // Place immediately at start point and set orientation
             UpdateCarPoseAndTreads(car, 0);
 
             _dynamicGroup.Children.Add(carModel);
@@ -640,13 +676,9 @@ namespace Labka4.Controls
 
         private static Model3DGroup CloneModelGroup(Model3DGroup src)
         {
-            // Shallow clone of children references is fine (geometries/materials are shared),
-            // only Transform differs per instance.
             var g = new Model3DGroup();
             for (int i = 0; i < src.Children.Count; i++)
-            {
                 g.Children.Add(src.Children[i]);
-            }
             return g;
         }
 
@@ -715,21 +747,17 @@ namespace Labka4.Controls
                 {
                     int row = car.FixedIndex;
 
-                    // boundary check
                     if (car.DirSign > 0)
                     {
-                        // moving right; if at last vertex -> end
                         if (car.SegIndex >= _cols - 1) return true;
                         if (car.SegIndex > _cols - 2) return true;
                     }
                     else
                     {
-                        // moving left; if before first -> end
                         if (car.SegIndex < 0) return true;
                         if (car.SegIndex == 0 && car.SegT <= 0) return true;
                     }
 
-                    // current segment endpoints (always segIndex -> segIndex+1)
                     if (car.SegIndex < 0) return true;
                     if (car.SegIndex > _cols - 2) return true;
 
@@ -757,7 +785,6 @@ namespace Labka4.Controls
                         remaining -= distToEdge;
                         if (car.DirSign > 0)
                         {
-                            // step to next segment
                             car.SegIndex++;
                             car.SegT = 0;
                             if (car.SegIndex >= _cols - 1) return true;
@@ -832,7 +859,6 @@ namespace Labka4.Controls
 
         private void UpdateCarPoseAndTreads(CarInstance car, double dt)
         {
-            // Compute current position + forward direction (in local surface coords)
             Point3D pos;
             Vector3D forward;
 
@@ -866,17 +892,41 @@ namespace Labka4.Controls
             else
                 forward = new Vector3D(1, 0, 0);
 
-            // Set translation
-            car.Translate.OffsetX = pos.X;
-            car.Translate.OffsetY = pos.Y;
-            car.Translate.OffsetZ = pos.Z;
+            // Normal near current point
+            int rr, cc;
+            if (car.Axis == TravelAxis.Horizontal)
+            {
+                rr = Clamp(car.FixedIndex, 0, _rows - 1);
+                cc = Clamp(car.SegIndex + (car.SegT >= 0.5 ? 1 : 0), 0, _cols - 1);
+            }
+            else
+            {
+                rr = Clamp(car.SegIndex + (car.SegT >= 0.5 ? 1 : 0), 0, _rows - 1);
+                cc = Clamp(car.FixedIndex, 0, _cols - 1);
+            }
 
-            // Rotate car around local Z to face forward in XY plane
+            Vector3D n = GetSurfaceNormal(rr, cc);
+            if (n.LengthSquared > 1e-12) n.Normalize();
+
+            // Keep on clicked side (normalSign chosen so this faces camera)
+            n *= car.NormalSign;
+
+            // Flip based on "downward normal" in LOCAL surface coordinates
+            if (car.FlipRotation != null)
+                car.FlipRotation.Angle = (n.Z < 0) ? 180.0 : 0.0;
+
+            // Lift above surface to avoid intersection
+            Point3D lifted = pos + n * car.Lift;
+
+            car.Translate.OffsetX = lifted.X;
+            car.Translate.OffsetY = lifted.Y;
+            car.Translate.OffsetZ = lifted.Z;
+
+            // Yaw in XY plane
             double angleRad = Math.Atan2(forward.Y, forward.X);
-            double angleDeg = angleRad * 180.0 / Math.PI;
-            car.Rotation.Angle = angleDeg;
+            car.Rotation.Angle = angleRad * 180.0 / Math.PI;
 
-            // Add tread marks (two tracks) based on traveled distance
+            // Treads
             if (!car.HasLastPos)
             {
                 car.LastPos = pos;
@@ -892,33 +942,14 @@ namespace Labka4.Controls
 
             car.DistanceSinceLastTread += d;
 
-            // Place stamps while accumulated distance exceeds spacing
-            // We place at current pos (simple) вЂ“ visually looks like tread cadence.
             if (car.DistanceSinceLastTread >= car.TreadSpacing)
             {
                 car.DistanceSinceLastTread = 0;
 
-                // Normal near current grid point
-                int rr = 0, cc = 0;
-                if (car.Axis == TravelAxis.Horizontal)
-                {
-                    rr = Clamp(car.FixedIndex, 0, _rows - 1);
-                    cc = Clamp(car.SegIndex + (car.SegT >= 0.5 ? 1 : 0), 0, _cols - 1);
-                }
-                else
-                {
-                    rr = Clamp(car.SegIndex + (car.SegT >= 0.5 ? 1 : 0), 0, _rows - 1);
-                    cc = Clamp(car.FixedIndex, 0, _cols - 1);
-                }
-
-                Vector3D n = GetSurfaceNormal(rr, cc);
-
-                // right vector = n x forward
                 Vector3D right = Vector3D.CrossProduct(n, forward);
                 if (right.LengthSquared > 1e-12) right.Normalize();
                 else right = new Vector3D(0, 1, 0);
 
-                // Two wheel centers
                 Point3D leftWheel = pos + right * car.WheelOffset;
                 Point3D rightWheel = pos - right * car.WheelOffset;
 
@@ -952,11 +983,10 @@ namespace Labka4.Controls
             double halfL = length / 2.0;
             double halfW = width / 2.0;
 
-            // Lift to avoid z-fighting
+            // Lift tread slightly above surface (also along the correct side normal)
             double lift = Math.Max(0.002 * _spanForScale, 0.01);
             Vector3D up = normal * lift;
 
-            // Quad corners (a simple rectangle)
             Point3D p1 = center + forward * halfL + right * halfW + up;
             Point3D p2 = center + forward * halfL - right * halfW + up;
             Point3D p3 = center - forward * halfL + right * halfW + up;
@@ -974,7 +1004,6 @@ namespace Labka4.Controls
             _tracksNormals.Add(normal);
             _tracksNormals.Add(normal);
 
-            // Two triangles: (p1, p3, p2) and (p3, p4, p2)
             _tracksIdx.Add(baseIndex + 0);
             _tracksIdx.Add(baseIndex + 2);
             _tracksIdx.Add(baseIndex + 1);
@@ -986,7 +1015,6 @@ namespace Labka4.Controls
 
         private bool UpdateFalling(CarInstance car, double dt)
         {
-            // Gravity in world Y (down = -Y)
             car.FallVelocityWorld += 9.81 * dt;
 
             Vector3D worldMove = new Vector3D(0, -car.FallVelocityWorld * dt, 0);
@@ -1028,7 +1056,7 @@ namespace Labka4.Controls
         }
 
         // ============================================================
-        // Transforms for falling (world->local, local->world)
+        // Transforms: world<->local for surface rotation
         // ============================================================
         private Vector3D WorldVectorToLocal(Vector3D worldV)
         {
@@ -1039,6 +1067,17 @@ namespace Labka4.Controls
                 return m.Transform(worldV);
             }
             return worldV;
+        }
+
+        private Point3D WorldPointToLocal(Point3D worldP)
+        {
+            var m = _surfaceTransform.Value;
+            if (m.HasInverse)
+            {
+                m.Invert();
+                return m.Transform(worldP);
+            }
+            return worldP;
         }
 
         private Point3D LocalPointToWorld(Point3D localP)
@@ -1080,7 +1119,7 @@ namespace Labka4.Controls
         }
 
         // ============================================================
-        // Bounds, normals, gradient brush (as before)
+        // Bounds, normals, gradient brush
         // ============================================================
         private static (double minX, double maxX, double minY, double maxY, double minZ, double maxZ) CalculateBounds(Point3D[,] data)
         {
@@ -1198,29 +1237,30 @@ namespace Labka4.Controls
             public Model3DGroup Model;
             public TranslateTransform3D Translate;
             public AxisAngleRotation3D Rotation;
+            public AxisAngleRotation3D FlipRotation;
 
             public CarState State;
 
-            // Motion state:
-            public TravelAxis Axis;     // horizontal: fixed row; vertical: fixed col
-            public int FixedIndex;      // row (if horizontal) or col (if vertical)
-            public int SegIndex;        // segment start index along moving axis
-            public double SegT;         // 0..1 along segment
-            public int DirSign;         // +1 or -1 along moving axis
+            public TravelAxis Axis;
+            public int FixedIndex;
+            public int SegIndex;
+            public double SegT;
+            public int DirSign;
 
             public double Speed;
 
-            // Tread parameters:
             public double WheelOffset;
             public double TireWidth;
             public double TreadLength;
             public double TreadSpacing;
 
+            public double Lift;
+            public int NormalSign; // +1 or -1 (clicked side)
+
             public bool HasLastPos;
             public Point3D LastPos;
             public double DistanceSinceLastTread;
 
-            // Falling:
             public double FallVelocityWorld;
         }
     }

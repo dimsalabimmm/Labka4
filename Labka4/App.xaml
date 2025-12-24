@@ -39,7 +39,7 @@
         <Style TargetType="TabItem">
             <Setter Property="Foreground" Value="{StaticResource Brush.TextSecondary}" />
             <Setter Property="Padding" Value="16,8" />
-            <Setter Property="Margin" Value="0,0,0,0" />
+            
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">
