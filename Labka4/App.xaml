@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              StartupUri="MainWindow.xaml">
     <Application.Resources>
-        <!-- Palette -->
+       
         <SolidColorBrush x:Key="Brush.WindowBackground" Color="#0B0E16" />
         <SolidColorBrush x:Key="Brush.PanelBackground" Color="#171C27" />
         <SolidColorBrush x:Key="Brush.CardBackground" Color="#111520" />
@@ -18,7 +18,7 @@
                           ShadowDepth="0"
                           Opacity="0.65" />
 
-        <!-- Global typography / theming -->
+        
         <Style TargetType="Window">
             <Setter Property="Background" Value="{StaticResource Brush.WindowBackground}" />
             <Setter Property="Foreground" Value="{StaticResource Brush.TextPrimary}" />
@@ -39,7 +39,7 @@
         <Style TargetType="TabItem">
             <Setter Property="Foreground" Value="{StaticResource Brush.TextSecondary}" />
             <Setter Property="Padding" Value="16,8" />
-            <Setter Property="Margin" Value="0,0,6,0" />
+            <Setter Property="Margin" Value="0,0,0,0" />
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="TabItem">

@@ -44,7 +44,7 @@ namespace Labka4
         {
             if (xSegments < 2 || ySegments < 2)
             {
-                throw new ArgumentException("Segment counts must be at least 2.");
+                throw new ArgumentException("Сегметов-то должно быть хотя бы 2!");
             }
 
             var points = new Point3D[ySegments, xSegments];
