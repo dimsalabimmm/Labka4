@@ -10,9 +10,9 @@
         Width="1000"
         Background="{StaticResource Brush.WindowBackground}">
     <Grid Background="{StaticResource Brush.WindowBackground}">
-        <Border Margin="16"
-                Padding="28"
-                CornerRadius="28"
+        <Border Margin="0"
+                Padding="10"
+                CornerRadius="0"
                 Background="{StaticResource Brush.CardBackground}"
                 BorderBrush="{StaticResource Brush.PanelBorder}"
                 BorderThickness="1"
